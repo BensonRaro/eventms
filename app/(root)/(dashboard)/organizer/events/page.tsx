@@ -4,7 +4,7 @@ import { type EventData } from "@/components/global/Event";
 
 const OrganizerEventsPage = async () => {
   const events = await prisma.event.findMany({
-    orderBy: { startDate: "asc" },
+    orderBy: { createdAt: "asc" },
   });
 
   const formattedEvents: EventData[] = events.map((event) => ({
