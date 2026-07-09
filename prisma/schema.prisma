@@ -1,0 +1,200 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  user
+}
+
+model User {
+ id                String    @id @map("_id")
+  name              String
+  email             String
+  emailVerified     Boolean   @default(false)
+  image             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  role              Role?     @default(user)
+  banned            Boolean?  @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  stripeCustomerId  String?
+  status            String?   @default("active")
+  sessions      Session[]
+  accounts      Account[]
+  events            Event[]
+  Attendees         Attendee[]
+  ticketPurchases   TicketPurchase[]
+  digitalTickets    DigitalTicket[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @map("_id")
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @map("_id")
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @map("_id")
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+
+// ==========================================
+// 2. Event MODELS
+// ==========================================
+
+model Event {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime
+  location         String?
+  imageUrl         String?
+  categoryId       String?
+  price            Float?   @default(0)
+  isFree           Boolean  @default(false)
+  url              String?
+  banned           Boolean  @default(false)
+  banReason        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  organizerId      String
+  organizer        User     @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  attendees        Attendee[]
+  tickets          Ticket[]
+  ticketPurchases  TicketPurchase[]
+  digitalTickets   DigitalTicket[]
+
+  @@index([organizerId])
+  @@map("event")
+}
+
+model Attendee {
+  id        String   @id @map("_id")
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticketId  String? 
+  ticket    Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([userId])
+  @@map("attendee")
+}
+
+model Ticket {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  price     Float
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendees Attendee[]
+
+  @@index([eventId])
+  @@map("ticket")
+}
+
+model TicketPurchase {
+  id                      String   @id @map("_id")
+  eventId                 String
+  event                   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId                  String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticketName              String
+  quantity                Int      @default(1)
+  amount                  Float
+  currency                String   @default("USD")
+  status                  String   @default("pending")
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  stripeCustomerId        String?
+  ticketToken             String?  @unique
+  ticketHash              String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  digitalTickets          DigitalTicket[]
+
+  @@index([eventId])
+  @@index([userId])
+  @@map("ticket_purchase")
+}
+
+model DigitalTicket {
+  id               String         @id @map("_id")
+  purchaseId       String
+  purchase         TicketPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticketCode       String         @unique
+  qrPayload        String
+  verifiedAt       DateTime?
+  issuedAt         DateTime       @default(now())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([purchaseId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("digital_ticket")
+}
